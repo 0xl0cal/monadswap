@@ -1,6 +1,6 @@
 # MonadSwap Interface 🚀
 
-Alternative Uniswap UI for Monad Testnet with native MON token support. Created due to the current Uniswap interface not working.
+Alternative Uniswap UI for Monad Testnet with native MON token support. Created due to the current Uniswap interface not working. Also you can use [Izumi Finance](https://alpha.izumi.finance/trade/swap)
 
 ![MonadSwap Screenshot](./screenshot.png) <!-- Add actual screenshot later -->
 
