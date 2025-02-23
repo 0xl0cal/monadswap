@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<!-- local.bnb - tg: @local911 - debankid: local -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monad Swap Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .swap-section, .unwrap-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .token-group {
+            margin: 15px 0;
+        }
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 5px 0;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            margin-top: 5px;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.3s;
+            width: 100%;
+            margin: 5px 0;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .balance-info {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 5px;	
+        }
+		.balance-info span {
+            margin-right: 15px;
+            padding: 3px 8px;
+            background: #f0f2f5;
+            border-radius: 4px;
+        }
+        .status-box {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .error {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .success {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .tx-history {
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+        .tx-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f8fafc;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Swap Section -->
+        <div class="swap-section">
+            <h2>Alternate Uniswap UI for Monad Testnet</h2>
+			<h5>credits: claude.ai, deepseek r1, local.bnb, monad</h5>
+            <div class="token-group">
+                <select id="fromToken">
+                    <option value="WMON">WMON</option>
+                    <option value="YAKI">YAKI</option>
+                    <option value="DAK">DAK</option>
+                    <option value="CHOG">CHOG</option>
+                </select>
+                <input type="number" id="amountIn" placeholder="0.0" step="any">
+                <div class="balance-info">
+                    Balance: 
+                    <span id="balanceYAKI">0.0 YAKI</span> | 
+                    <span id="balanceDAK">0.0 DAK</span> | 
+                    <span id="balanceCHOG">0.0 CHOG</span> | 
+                    <span id="balanceWMON">0.0 WMON</span>
+                </div>
+            </div>
+
+            <div class="token-group">
+                <select id="toToken">
+                    <option value="WMON">WMON</option>
+                    <option value="YAKI">YAKI</option>
+                    <option value="DAK">DAK</option>
+                    <option value="CHOG">CHOG</option>
+                </select>
+                <input type="text" id="amountOut" placeholder="0.0" readonly>
+            </div>
+
+            <div class="token-group">
+                <label>Slippage Tolerance (%):</label>
+                <input type="number" id="slippage" value="1.0" min="0.1" max="50" step="0.1">
+            </div>
+
+            <button id="approveButton">Approve</button>
+            <button id="swapButton">Swap</button>
+            <div id="swapStatus" class="status-box"></div>
+        </div>
+
+        <!-- Unwrap Section -->
+        <div class="unwrap-section">
+            <h2>WMON → MON Unwrap</h2>
+            <div class="token-group">
+                <input type="number" id="unwrapAmount" placeholder="WMON amount">
+                <div class="balance-info" id="wmonBalance">WMON Balance: 0.0</div>
+                <button id="unwrapButton">Unwrap</button>
+                <div class="balance-info">MON Balance: <span id="monBalance">0.0</span>
+</div>
+            </div>
+            <div id="unwrapStatus" class="status-box"></div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="tx-history">
+            <h3>Transaction History</h3>
+            <div id="txHistory"></div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            ROUTER_ADDRESS: "0xfb8e1c3b833f9e67a71c859a132cf783b645e436",
+            FACTORY_ADDRESS: "0x733e88f248b742db6c14c0b1713af5ad7fdd59d0",
+            TOKENS: {
+                YAKI: "0xfe140e1dCe99Be9F4F15d657CD9b7BF622270C50",
+                WMON: "0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701",
+                DAK: "0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714",
+                CHOG: "0xe0590015a873bf326bd645c3e1266d4db41c4e6b"
+            },
+            CHAIN_ID: 10143,
+            DEFAULT_GAS: 1_500_000,
+            EXPLORER_URL: "https://testnet.monadexplorer.com/tx/"
+        };
+
+        const ABI = {
+            ROUTER: [
+                "function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256,uint256,address[],address,uint256)",
+                "function getAmountsOut(uint256,address[]) view returns (uint256[])"
+            ],
+            ERC20: [
+                "function approve(address, uint256) returns (bool)",
+                "function allowance(address, address) view returns (uint256)",
+                "function balanceOf(address) view returns (uint256)"
+            ],
+            WMON: [
+                "function withdraw(uint256 wad) public"
+            ]
+        };
+
+        let provider, signer, router, wmonContract;
+        let tokenContracts = {};
+
+        async function connectWallet() {
+            try {
+                if (!window.ethereum) throw new Error("Please install MetaMask");
+                
+                await handleNetworkCheck();
+                
+                provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                
+                initializeContracts();
+                setupEventListeners();
+                updateUI();
+                
+            } catch (error) {
+                showError(error.message, 'swap');
+            }
+        }
+
+        async function handleNetworkCheck() {
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+            if (parseInt(chainId, 16) !== CONFIG.CHAIN_ID) {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x279f' }]
+                });
+            }
+        }
+
+        function initializeContracts() {
+            router = new ethers.Contract(CONFIG.ROUTER_ADDRESS, ABI.ROUTER, signer);
+            wmonContract = new ethers.Contract(CONFIG.TOKENS.WMON, ABI.WMON, signer);
+            
+            // Initialize token contracts
+            for (const [symbol, address] of Object.entries(CONFIG.TOKENS)) {
+                tokenContracts[symbol] = new ethers.Contract(address, ABI.ERC20, signer);
+            }
+        }
+
+        async function updateUI() {
+            updateAccountInfo();
+            await updateAllBalances();
+            updatePriceEstimate();
+        }
+
+        async function updateAccountInfo() {
+            const address = await signer.getAddress();
+            document.getElementById('accountInfo').textContent = 
+                `Connected: ${shortenAddress(address)}`;
+        }
+
+        async function updateAllBalances() {
+            try {
+                const userAddress = await signer.getAddress();
+                
+                // Обновляем балансы токенов
+                const balancePromises = Object.entries(CONFIG.TOKENS).map(async ([symbol, tokenAddress]) => {
+                    try {
+                        const contract = tokenContracts[symbol];
+                        const balance = await contract.balanceOf(userAddress);
+                        const formatted = ethers.utils.formatEther(balance);
+                        
+                        // Обновляем основной баланс
+                        const balanceElement = document.getElementById(`balance${symbol}`);
+                        if (balanceElement) {
+                            balanceElement.textContent = `${parseFloat(formatted).toFixed(4)} ${symbol}`;
+                        }
+                
+                        // Дополнительно обновляем WMON баланс в секции unwrap
+                        if (symbol === 'WMON') {
+                            const wmonBalanceElement = document.getElementById('wmonBalance');
+                            if (wmonBalanceElement) {
+                                wmonBalanceElement.textContent = `WMON Balance: ${parseFloat(formatted).toFixed(4)}`;
+                            }
+                        }
+                    } catch (err) {
+                        console.error(`Error updating ${symbol} balance:`, err);
+                    }
+                });
+
+                // Обновляем баланс MON (нативный токен)
+                const monBalance = await provider.getBalance(userAddress);
+                document.getElementById('monBalance').textContent = 
+                    `${parseFloat(ethers.utils.formatEther(monBalance)).toFixed(4)}`;
+        
+                await Promise.all(balancePromises);
+
+            } catch (error) {
+                console.error('Balance update error:', error);
+                showError('Failed to update balances', 'swap');
+            }
+        }
+
+        async function approveTokens() {
+            try {
+                const fromToken = document.getElementById('fromToken').value;
+                const amount = parseInput('amountIn');
+                
+                const tx = await tokenContracts[fromToken].approve(
+                    CONFIG.ROUTER_ADDRESS,
+                    amount
+                );
+                
+                showStatus('Approving...', 'swap');
+                await tx.wait();
+                showStatus('Approval successful!', 'swap', false);
+                addTransaction('Approve', tx.hash);
+                
+            } catch (error) {
+                showError(`Approval failed: ${error.message}`, 'swap');
+            }
+        }
+
+        async function executeSwap() {
+            try {
+                const fromToken = document.getElementById('fromToken').value;
+                const toToken = document.getElementById('toToken').value;
+                const amountIn = parseInput('amountIn');
+                const slippage = parseFloat(document.getElementById('slippage').value);
+                
+                const path = [
+                    CONFIG.TOKENS[fromToken],
+                    CONFIG.TOKENS[toToken]
+                ];
+
+                const amounts = await router.getAmountsOut(amountIn, path);
+                const amountOutMin = amounts[1].mul(100 - slippage).div(100);
+                const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+                const tx = await router.swapExactTokensForTokensSupportingFeeOnTransferTokens(
+                    amountIn,
+                    amountOutMin,
+                    path,
+                    await signer.getAddress(),
+                    deadline,
+                    { gasLimit: CONFIG.DEFAULT_GAS }
+                );
+
+                showStatus('Processing swap...', 'swap');
+                const receipt = await tx.wait();
+                
+                if (receipt.status === 1) {
+                    showStatus('Swap successful!', 'swap', false);
+                    addTransaction('Swap', tx.hash);
+                    updateAllBalances();
+                } else {
+                    throw new Error('Transaction reverted');
+                }
+
+            } catch (error) {
+                handleSwapError(error);
+            }
+        }
+
+        async function unwrapWMON() {
+            try {
+                const amount = parseInput('unwrapAmount');
+                const tx = await wmonContract.withdraw(amount);
+                
+                showStatus('Processing unwrap...', 'unwrap');
+                await tx.wait();
+                
+                showStatus('Unwrap successful!', 'unwrap', false);
+                addTransaction('Unwrap', tx.hash);
+                updateAllBalances();
+                
+            } catch (error) {
+                showError(`Unwrap failed: ${error.message}`, 'unwrap');
+            }
+        }
+
+        // Helpers
+        function parseInput(id) {
+            const value = document.getElementById(id).value;
+            return ethers.utils.parseEther(value || '0');
+        }
+
+        function shortenAddress(address) {
+            return `${address.slice(0,6)}...${address.slice(-4)}`;
+        }
+
+        function showStatus(message, section, isError = true) {
+            const element = document.getElementById(`${section}Status`);
+            element.textContent = message;
+            element.className = `status-box ${isError ? 'error' : 'success'}`;
+            if (!isError) setTimeout(() => element.textContent = '', 5000);
+        }
+
+        function showError(message, section) {
+            showStatus(message, section, true);
+        }
+
+        function addTransaction(type, hash) {
+            const history = document.getElementById('txHistory');
+            const txElement = document.createElement('div');
+            txElement.className = 'tx-item';
+            txElement.innerHTML = `
+                <span>${type}</span>
+                <a href="${CONFIG.EXPLORER_URL}${hash}" target="_blank">
+                    ${hash.slice(0,8)}...${hash.slice(-6)}
+                </a>
+            `;
+            history.prepend(txElement);
+        }
+
+        // Event Listeners
+        function setupEventListeners() {
+            document.getElementById('approveButton').addEventListener('click', approveTokens);
+            document.getElementById('swapButton').addEventListener('click', executeSwap);
+            document.getElementById('unwrapButton').addEventListener('click', unwrapWMON);
+            
+            document.getElementById('fromToken').addEventListener('change', updateUI);
+            document.getElementById('toToken').addEventListener('change', updateUI);
+            document.getElementById('amountIn').addEventListener('input', 
+                debounce(updatePriceEstimate, 500));
+            
+            window.ethereum.on('accountsChanged', () => window.location.reload());
+            window.ethereum.on('chainChanged', () => window.location.reload());
+        }
+
+        async function updatePriceEstimate() {
+            try {
+                const fromToken = document.getElementById('fromToken').value;
+                const toToken = document.getElementById('toToken').value;
+                const amountIn = parseInput('amountIn');
+                
+                if (amountIn.isZero()) return;
+
+                const amounts = await router.getAmountsOut(
+                    amountIn,
+                    [CONFIG.TOKENS[fromToken], CONFIG.TOKENS[toToken]]
+                );
+                
+                document.getElementById('amountOut').value = 
+                    ethers.utils.formatEther(amounts[1]);
+
+            } catch (error) {
+                document.getElementById('amountOut').value = '0.0';
+            }
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func(...args), wait);
+            };
+        }
+
+        // Initialization
+        window.addEventListener('load', () => {
+            if (window.ethereum?.isConnected()) {
+                connectWallet();
+            }
+        });
+    </script>
+</body>
+</html>
